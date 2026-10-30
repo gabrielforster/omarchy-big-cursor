@@ -29,6 +29,9 @@ Item {
   property int holdMs: 500
   property int shrinkMs: 350
   property int baseSize: root.environmentSize()
+  // baseSize is also the everyday cursor size once it has been set; until
+  // then the session's own size is left alone.
+  property bool sizeSet: false
 
   // Shake detection works on the last few hundred milliseconds of movement.
   readonly property int shakeWindowMs: 500
@@ -45,6 +48,9 @@ Item {
   property double previewUntilMs: 0
   property double lastTickMs: 0
   property bool cursorHidden: false
+  // The everyday size last sent to the bridge; 0 means the session's size and
+  // -1 that nothing was sent yet.
+  property int appliedSize: -1
 
   // The arrow image from the cursor theme Hyprland is using, exported by the
   // bridge, plus its hotspot and nominal size. Empty when the theme has no
@@ -95,12 +101,25 @@ Item {
       return
     }
 
+    root.sizeSet = entry.baseSize !== undefined && isFinite(Number(entry.baseSize))
     root.baseSize = Math.round(root.numberSetting(entry, "baseSize", root.environmentSize(), 8, 256))
     root.maxSize = Math.round(root.numberSetting(entry, "maxSize", 96, root.baseSize, 256))
     root.sensitivity = root.numberSetting(entry, "sensitivity", 2.5, 1.5, 10)
     root.growMs = Math.round(root.numberSetting(entry, "growMs", 300, 16, 5000))
     root.holdMs = Math.round(root.numberSetting(entry, "holdMs", 500, 0, 10000))
     root.shrinkMs = Math.round(root.numberSetting(entry, "shrinkMs", 350, 16, 5000))
+    root.applyCursorSize()
+  }
+
+  // Sent once by every new service: Hyprland forgets the size when the session
+  // ends, and the shell recreates the service on every settings change, so a
+  // reset usually reaches a service that never set the size itself. The
+  // bridge ignores "default" unless it changed the size this session.
+  function applyCursorSize() {
+    var size = root.sizeSet ? root.baseSize : 0
+    if (size === root.appliedSize || !bridge.running) return
+    bridge.write(size > 0 ? "size " + size + "\n" : "size default\n")
+    root.appliedSize = size
   }
 
   // Grow to the current maximum and back, so the size can be judged while a
@@ -296,6 +315,7 @@ Item {
     // every new bridge sets the cursor state outright instead of assuming it.
     onRunningChanged: if (running) {
       root.refreshCursorTheme()
+      root.applyCursorSize()
       root.cursorHidden = root.enlarged
       bridge.write(root.enlarged ? "cursor hide\n" : "cursor show\n")
     }

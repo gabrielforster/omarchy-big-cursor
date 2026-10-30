@@ -3,7 +3,7 @@
 An [Omarchy](https://omarchy.org/) shell plugin that brings macOS "shake to
 locate" to Hyprland. Wiggle the mouse and the cursor grows. The longer you
 shake, the bigger it gets, up to the size you configure. Stop shaking and it
-shrinks back.
+shrinks back. It can also set the everyday size of the cursor.
 
 ![Big Cursor](preview.png)
 
@@ -36,7 +36,8 @@ omarchy plugin remove io.github.gabrielforster.big-cursor
 To keep it installed but turn it off, use
 `omarchy plugin disable io.github.gabrielforster.big-cursor`. Either way the
 real cursor is restored and the settings entry is dropped from
-`~/.config/omarchy/shell.json`. Besides a temporary arrow image under
+`~/.config/omarchy/shell.json`. A cursor size set from the plugin lasts until
+you log out. Besides a temporary arrow image and a size marker under
 `$XDG_RUNTIME_DIR/big-cursor`, the plugin writes nothing to disk.
 
 ## Requirements
@@ -51,6 +52,11 @@ real cursor is restored and the settings entry is dropped from
 
 Click the cursor icon in the bar to set:
 
+- **Cursor size:** the everyday size of the cursor, from 16 to 128 px. It
+  applies when you release the slider, through `hyprctl setcursor` with your
+  current theme. **Reset to default** goes back to the size the session started
+  with (`$HYPRCURSOR_SIZE`, 24 in Omarchy). Max size is raised to match if it
+  was smaller.
 - **Max size:** how big the cursor can get, from 32 to 256 px. A preview plays
   when you release the slider.
 - **Shake needed:** how hard you have to shake before it grows. Choose
@@ -74,14 +80,20 @@ The same settings live on the plugin's entry in
 | `growMs`      | `300`                      | Shaking time needed to reach `maxSize`                           |
 | `holdMs`      | `500`                      | How long the cursor stays big after you stop                     |
 | `shrinkMs`    | `350`                      | Time to shrink back from `maxSize`                               |
-| `baseSize`    | `$HYPRCURSOR_SIZE` or `24` | Size the enlarged arrow starts from                              |
+| `baseSize`    | `$HYPRCURSOR_SIZE` or `24` | Everyday cursor size, which the enlarged arrow starts from. Unset leaves the session's size alone |
 
 ## How it works
 
 - `cursor-bridge.py` is one long-lived process. It polls `cursorpos` on
   Hyprland's request socket (125 Hz while the pointer moves, 20 Hz when it is
-  still) and prints positions. It also hides and shows the real cursor when the
-  service asks.
+  still) and prints positions. It also hides and shows the real cursor and sets
+  its size when the service asks.
+- Hyprland forgets a size set with `setcursor` when you log out, so the service
+  applies `baseSize` again every time the shell starts. The desktop
+  `cursor-size` setting is not touched, because dconf would keep it after the
+  plugin is removed. Wayland apps that let Hyprland draw their cursor (GTK4,
+  Qt 6, Firefox, Chromium) follow the new size; GTK3 and XWayland apps keep the
+  session's size.
 - `Service.qml` keeps the last 500 ms of movement. It counts that movement as a
   shake when the pointer covers at least `sensitivity` times the size of the
   area it stays inside and changes direction at least twice. A straight sweep
