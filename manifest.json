@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.gabrielforster.big-cursor",
   "name": "Big Cursor",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "gabrielforster",
   "description": "Shake the mouse to find the cursor: it grows while you shake, like macOS.",
   "kinds": ["service", "bar-widget"],
