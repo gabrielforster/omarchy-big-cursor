@@ -36,7 +36,8 @@ omarchy plugin remove io.github.gabrielforster.big-cursor
 To keep it installed but turn it off, use
 `omarchy plugin disable io.github.gabrielforster.big-cursor`. Either way the
 real cursor is restored and the settings entry is dropped from
-`~/.config/omarchy/shell.json`. The plugin writes nothing else to disk.
+`~/.config/omarchy/shell.json`. Besides a temporary arrow image under
+`$XDG_RUNTIME_DIR/big-cursor`, the plugin writes nothing to disk.
 
 ## Requirements
 
@@ -85,13 +86,19 @@ The same settings live on the plugin's entry in
   shake when the pointer covers at least `sensitivity` times the size of the
   area it stays inside and changes direction at least twice. A straight sweep
   or a single there-and-back flick doesn't count.
-- While enlarged, the real cursor is hidden and a vector arrow is drawn on an
-  overlay that is mapped only for that moment. The overlay scales smoothly at
-  any size. Hyprland's `setcursor` can't do this: it reloads the whole theme
-  on every step and doesn't redraw the cursor that's already showing.
-- The arrow takes its fill and outline from the current cursor theme: the
-  bridge samples the two most common colors of the theme's `left_ptr` image.
-  Themes that only ship hyprcursor images keep the default black and white.
+- While enlarged, the real cursor is hidden and an overlay that is mapped only
+  for that moment draws the arrow. The arrow is not drawn by the plugin: it is
+  the largest `left_ptr` image exported from the cursor theme Hyprland loaded,
+  placed by that image's own hotspot. It looks exactly like the real cursor,
+  just bigger, and stays sharp up to the largest size in the theme (96 px in
+  Adwaita and Yaru); above that it is scaled up and softens.
+- The overlay grows that bitmap smoothly at any size. Hyprland's `setcursor`
+  can't do this: it reloads the whole theme on every step and doesn't redraw
+  the cursor that's already showing.
+- Only the arrow is reproduced. Over a text field or a window border the cursor
+  is an I-beam or a resize handle, and the enlarged one is still the arrow.
+- Themes that only ship hyprcursor images have no Xcursor file to export, so
+  they fall back to a drawn black arrow with a white outline.
 - While the shake lasts, a 0–1 level rises over `growMs`. After `holdMs`
   without shaking, it falls over `shrinkMs`. The arrow size follows that level
   with an ease-out curve.
