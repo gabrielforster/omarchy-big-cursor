@@ -290,15 +290,14 @@ Item {
       onRead: line => root.handleLine(line)
     }
 
-    // The bridge shows the cursor again when it exits, so a restarted bridge
-    // starts from a visible cursor.
-    onExited: {
-      root.cursorHidden = false
-      bridgeRestart.restart()
-    }
+    onExited: bridgeRestart.restart()
+    // The bridge shows the cursor again when it exits cleanly, but a shell
+    // restart kills it, and Hyprland keeps the cursor hidden across that. So
+    // every new bridge sets the cursor state outright instead of assuming it.
     onRunningChanged: if (running) {
       root.refreshCursorTheme()
-      root.setCursorHidden(root.enlarged)
+      root.cursorHidden = root.enlarged
+      bridge.write(root.enlarged ? "cursor hide\n" : "cursor show\n")
     }
   }
 
