@@ -4,7 +4,7 @@ the requests it makes to Hyprland."""
 import time
 import unittest
 
-from support import BLACK, WHITE, Bridge, FakeHyprland, Session, image, outlined, xcursor
+from support import Bridge, FakeHyprland, Session
 
 HIDE = "/eval hl.config({ cursor = { invisible = true } })"
 SHOW = "/eval hl.config({ cursor = { invisible = false } })"
@@ -78,31 +78,11 @@ class CursorVisibilityTest(BridgeTest):
         self.assertEqual(self.hyprland.requests, [])
 
 
-class ColorsTest(BridgeTest):
-    def add_theme(self, name, fill, outline):
-        self.session.add_theme(name, {"left_ptr": xcursor([image(24, outlined(24, lambda r, c: fill, outline))])})
-
-    def test_reports_the_theme_colors(self):
-        self.add_theme("Plain", BLACK, WHITE)
-        bridge = self.start(XCURSOR_THEME="Plain")
-        bridge.send("colors")
-        self.assertEqual(bridge.wait_for("colors"), ["colors", "#000000", "#ffffff"])
-
-    def test_picks_up_a_theme_changed_at_runtime(self):
-        self.add_theme("Dark", BLACK, WHITE)
-        self.add_theme("Light", WHITE, BLACK)
-        self.session.set_desktop_theme("Dark")
-        bridge = self.start()
-        bridge.send("colors")
-        self.assertEqual(bridge.wait_for("colors"), ["colors", "#000000", "#ffffff"])
-        self.session.set_desktop_theme("Light")
-        bridge.send("colors")
-        self.assertEqual(bridge.wait_for("colors"), ["colors", "#ffffff", "#000000"])
-
+class ThemeRequestTest(BridgeTest):
     def test_stays_silent_without_a_theme(self):
         bridge = self.start(XCURSOR_THEME="Nope")
         bridge.send("colors")
-        self.assertIsNone(bridge.wait_for("colors", timeout=0.5))
+        self.assertIsNone(bridge.wait_for("arrow", timeout=0.5))
         # Still serving after the empty reply.
         bridge.send("cursor hide")
         self.assertTrue(self.wait_for_request(HIDE))

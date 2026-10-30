@@ -1,22 +1,15 @@
-"""The theme's arrow exported as a PNG for the overlay to scale (#2).
-
-Skipped until the bridge can export the arrow.
-"""
+"""The theme's arrow exported as a PNG for the overlay to scale."""
 
 import os
 import unittest
 
-from support import (BLACK, WHITE, Bridge, FakeHyprland, Session, image, load_bridge,
-                     outlined, premultiplied, read_png, xcursor)
-
-EXPORTS_ARROW = hasattr(load_bridge(), "arrow_sprite")
-
+from support import (BLACK, WHITE, Bridge, FakeHyprland, Session, image, outlined, premultiplied,
+                     read_png, xcursor)
 
 def flat(size, fill=BLACK, nominal=None, hotspot=(1, 1)):
     return image(size, outlined(size, lambda row, column: fill), nominal=nominal, hotspot=hotspot)
 
 
-@unittest.skipUnless(EXPORTS_ARROW, "the bridge does not export the theme's arrow yet")
 class ArrowExportTest(unittest.TestCase):
     def setUp(self):
         self.session = Session()
@@ -68,9 +61,8 @@ class ArrowExportTest(unittest.TestCase):
         bridge = self.start(XCURSOR_THEME="HyprcursorOnly")
         self.assertIsNone(bridge.wait_for("arrow", timeout=0.5))
 
-    # Known issue: Xcursor pixels are premultiplied ARGB and PNG alpha is
-    # straight, so copying them across darkens every translucent pixel; the
-    # anti-aliased edge of a white outline turns grey.
+    # Xcursor pixels are premultiplied ARGB and PNG alpha is straight; copied
+    # across unchanged, the anti-aliased edge of a white outline turns grey.
     def test_translucent_pixels_keep_their_color(self):
         pixels = [premultiplied(128, 255, 255, 255)] * 16
         bridge = self.start_with(image(4, pixels))
@@ -79,23 +71,22 @@ class ArrowExportTest(unittest.TestCase):
         self.assertEqual(alpha, 128)
         self.assertGreaterEqual(min(red, green, blue), 250, "half-transparent white came out as grey")
 
-    # Known issue: the size reported is the image width. An Xcursor image's
-    # nominal size can differ from its pixel size, and the cursor size the
-    # service scales to is a nominal size.
+    # An Xcursor image's nominal size can differ from its pixel size, and the
+    # cursor size the service scales to is a nominal size.
     def test_reports_the_nominal_size(self):
         bridge = self.start_with(flat(64, nominal=48))
         self.assertEqual(bridge.wait_for("arrow")[4], "48")
 
-    # Known issue: every shake start writes a new file even when the theme has
-    # not changed, so QML reloads the image for nothing.
+    # Every shake start asks again; an unchanged theme must not make QML
+    # reload the image.
     def test_unchanged_theme_reuses_the_export(self):
         bridge = self.start_with(flat(24))
         first = bridge.wait_for("arrow")[1]
         bridge.send("colors")
         self.assertEqual(bridge.wait_for("arrow")[1], first)
 
-    # Known issue: the export outlives the bridge; nothing removes it when the
-    # shell exits or the plugin is disabled.
+    # When the shell closes the bridge's input. A shell restart kills the
+    # bridge instead, and the next bridge replaces the leftover export.
     def test_removes_the_export_on_exit(self):
         bridge = self.start_with(flat(24))
         bridge.wait_for("arrow")

@@ -1,22 +1,16 @@
-"""How the bridge finds the cursor theme and samples its arrow colors."""
+"""How the bridge finds the cursor theme and reads its arrow images."""
 
 import os
 import unittest
 from unittest import mock
 
-from support import (BLACK, TRANSPARENT, WHITE, Session, argb, image, load_bridge, outlined,
-                     xcursor)
+from support import BLACK, WHITE, Session, image, load_bridge, outlined, xcursor
 
 bridge = load_bridge()
 
 
 def flat_arrow(size=24, fill=BLACK, outline=WHITE):
     return xcursor([image(size, outlined(size, lambda row, column: fill, outline))])
-
-
-def luminance(color):
-    red, green, blue = (int(color[index:index + 2], 16) for index in (1, 3, 5))
-    return 0.2126 * red + 0.7152 * green + 0.0722 * blue
 
 
 class SessionTest(unittest.TestCase):
@@ -49,13 +43,27 @@ class ThemeNameTest(SessionTest):
         os.environ["PATH"] = self.session.root  # no stubs, no real gsettings
         self.assertEqual(bridge.theme_name(), "default")
 
-    # Known issue: the environment is fixed when the shell starts, so a theme
-    # applied later (Omarchy's cursor plugins run `hyprctl setcursor` and
-    # update the desktop setting) is never seen while the variable is set.
+    # The environment is fixed when the shell starts, so a theme applied later
+    # (Omarchy's cursor plugins run `hyprctl setcursor` and update the desktop
+    # setting) has to win over it.
     def test_theme_changed_after_startup_wins_over_the_environment(self):
         os.environ["XCURSOR_THEME"] = "Bibata"
         self.session.set_desktop_theme("Yaru")
         self.assertEqual(bridge.theme_name(), "Yaru")
+
+    def test_uses_gsettings_without_dconf(self):
+        self.session.remove_stub("dconf")
+        self.session.set_desktop_theme("Yaru")
+        self.assertEqual(bridge.theme_name(), "Yaru")
+
+    # Known issue: without dconf, gsettings has no storage and reports the
+    # schema default ('Adwaita') whether or not a theme was set, which hides
+    # the theme the session environment names.
+    def test_without_dconf_the_environment_wins_over_gsettings(self):
+        self.session.remove_stub("dconf")
+        self.session.set_desktop_theme("Adwaita")
+        os.environ["XCURSOR_THEME"] = "Bibata"
+        self.assertEqual(bridge.theme_name(), "Bibata")
 
 
 class CursorFileTest(SessionTest):
@@ -100,66 +108,32 @@ class CursorFileTest(SessionTest):
         self.assertIsNone(bridge.cursor_file("Nope"))
 
 
-class CursorColorsTest(SessionTest):
+class ArrowImagesTest(SessionTest):
     def use_theme(self, content):
         self.session.add_theme("Test", {"left_ptr": content})
         os.environ["XCURSOR_THEME"] = "Test"
 
-    def test_black_arrow_with_white_outline(self):
-        self.use_theme(flat_arrow())
-        self.assertEqual(bridge.cursor_colors(), ("#000000", "#ffffff"))
+    def test_reads_every_image_with_its_size_and_hotspot(self):
+        self.use_theme(xcursor([image(24, outlined(24, lambda row, column: BLACK), hotspot=(3, 1)),
+                                image(64, outlined(64, lambda row, column: BLACK), nominal=48,
+                                      hotspot=(8, 2))]))
+        images = bridge.theme_arrow()
+        self.assertEqual([(entry["nominal"], entry["width"], entry["height"],
+                           entry["hotspotX"], entry["hotspotY"]) for entry in images],
+                         [(24, 24, 24, 3, 1), (48, 64, 64, 8, 2)])
+        self.assertEqual(images[1]["pixels"][64 * 32 + 32], BLACK)
 
-    def test_recolored_arrow(self):
-        self.use_theme(flat_arrow(fill=argb(255, 0x0c, 0x0b, 0x0c), outline=argb(255, 0xb5, 0x97, 0x90)))
-        self.assertEqual(bridge.cursor_colors(), ("#0c0b0c", "#b59790"))
-
-    def test_ignores_the_translucent_shadow(self):
-        shadow = argb(80, 0, 0, 0)
-        pixels = outlined(24, lambda row, column: BLACK) + [shadow] * 24 * 30
-        self.use_theme(xcursor([{"nominal": 24, "width": 24, "height": 54, "hotspot": (1, 1),
-                                 "pixels": pixels}]))
-        self.assertEqual(bridge.cursor_colors(), ("#000000", "#ffffff"))
-
-    def test_samples_the_largest_image(self):
-        small = image(12, outlined(12, lambda row, column: WHITE, BLACK))
-        large = image(48, outlined(48, lambda row, column: BLACK, WHITE))
-        self.use_theme(xcursor([small, large]))
-        self.assertEqual(bridge.cursor_colors(), ("#000000", "#ffffff"))
-
-    def test_no_theme_keeps_the_defaults(self):
+    def test_no_theme(self):
         os.environ["XCURSOR_THEME"] = "Nope"
-        self.assertIsNone(bridge.cursor_colors())
-
-    def test_fully_transparent_image_keeps_the_defaults(self):
-        self.use_theme(xcursor([image(8, [TRANSPARENT] * 64)]))
-        self.assertIsNone(bridge.cursor_colors())
+        self.assertIsNone(bridge.theme_arrow())
 
     def test_file_that_is_not_an_xcursor(self):
         self.use_theme(b"\x89PNG\r\n\x1a\n" + bytes(64))
-        self.assertIsNone(bridge.cursor_colors())
+        self.assertFalse(bridge.theme_arrow())
 
     def test_truncated_xcursor(self):
         self.use_theme(flat_arrow()[:100])
-        self.assertIsNone(bridge.cursor_colors())
-
-    # Known issue: the fill is taken as the single most common color. A
-    # gradient fill (Yaru) spreads over many shades, so its flat white outline
-    # wins and the enlarged arrow comes out inverted.
-    def test_gradient_fill_stays_the_fill(self):
-        def gradient(row, column):
-            shade = 0x20 + row * 3
-            return argb(255, shade, shade, shade)
-        self.use_theme(xcursor([image(20, outlined(20, gradient))]))
-        fill, stroke = bridge.cursor_colors()
-        self.assertLess(luminance(fill), 128, "the dark gradient fill was reported as " + fill)
-        self.assertGreater(luminance(stroke), 128, "the white outline was reported as " + stroke)
-
-    # Known issue: with a single opaque color the outline gets the fill's
-    # color and disappears against it.
-    def test_single_color_arrow_keeps_a_visible_outline(self):
-        self.use_theme(xcursor([image(16, [BLACK] * 256)]))
-        fill, stroke = bridge.cursor_colors()
-        self.assertNotEqual(fill, stroke)
+        self.assertIsNone(bridge.theme_arrow())
 
 
 if __name__ == "__main__":

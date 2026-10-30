@@ -133,7 +133,8 @@ def read_png(path):
 STUB = """#!/bin/sh
 # Stands in for `gsettings get ... cursor-theme` and `dconf read ...`.
 [ -s "$BIG_CURSOR_TEST_DESKTOP_THEME" ] || exit 0
-printf "'%s'\\n" "$(cat "$BIG_CURSOR_TEST_DESKTOP_THEME")"
+read -r theme < "$BIG_CURSOR_TEST_DESKTOP_THEME"
+printf "'%s'\\n" "$theme"
 """
 
 
@@ -167,11 +168,15 @@ class Session:
             "XDG_DATA_DIRS": self.system_data,
             "XDG_RUNTIME_DIR": self.runtime,
             "HYPRLAND_INSTANCE_SIGNATURE": "test",
-            "PATH": self.bin + os.pathsep + os.environ.get("PATH", "/usr/bin"),
+            # Only the stubs, so the real dconf and gsettings never answer.
+            "PATH": self.bin,
             "BIG_CURSOR_TEST_DESKTOP_THEME": self.desktop_theme_file,
         }
         env.update(extra)
         return env
+
+    def remove_stub(self, name):
+        os.unlink(os.path.join(self.bin, name))
 
     def set_desktop_theme(self, name):
         with open(self.desktop_theme_file, "w") as file:
