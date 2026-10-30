@@ -88,5 +88,57 @@ class ThemeRequestTest(BridgeTest):
         self.assertTrue(self.wait_for_request(HIDE))
 
 
+class CursorSizeTest(BridgeTest):
+    def test_sets_the_size_in_hyprland_with_the_current_theme(self):
+        self.session.set_desktop_theme("Bibata")
+        bridge = self.start()
+        bridge.send("size 48")
+        self.assertTrue(self.wait_for_request("/setcursor Bibata 48"))
+
+    def test_default_goes_back_to_the_session_size(self):
+        self.session.set_desktop_theme("Bibata")
+        bridge = self.start(XCURSOR_SIZE="32")
+        bridge.send("size 48", "size default")
+        self.assertTrue(self.wait_for_request("/setcursor Bibata 32"))
+
+    def test_default_without_a_session_size_is_24(self):
+        self.session.set_desktop_theme("Bibata")
+        bridge = self.start()
+        bridge.send("size 48", "size default")
+        self.assertTrue(self.wait_for_request("/setcursor Bibata 24"))
+
+    # The shell recreates the service, and so the bridge, on every settings
+    # change, so the bridge that hears "default" is rarely the one that set
+    # the size.
+    def test_default_after_a_bridge_restart(self):
+        self.session.set_desktop_theme("Bibata")
+        first = self.start()
+        first.send("size 48")
+        self.assertTrue(self.wait_for_request("/setcursor Bibata 48"))
+        first.close()
+        self.start().send("size default")
+        self.assertTrue(self.wait_for_request("/setcursor Bibata 24"))
+
+    # Every new service sends "default" when no size is set; a size someone
+    # else gave Hyprland must survive that.
+    def test_default_leaves_a_size_it_never_set_alone(self):
+        bridge = self.start()
+        bridge.send("size default", "cursor hide")
+        self.assertTrue(self.wait_for_request(HIDE))
+        self.assertEqual(self.hyprland.requests, [HIDE])
+
+    def test_default_only_restores_once(self):
+        bridge = self.start()
+        bridge.send("size 48", "size default", "size default", "cursor hide")
+        self.assertTrue(self.wait_for_request(HIDE))
+        self.assertEqual(self.hyprland.requests, ["/setcursor default 48", "/setcursor default 24", HIDE])
+
+    def test_ignores_sizes_out_of_range(self):
+        bridge = self.start()
+        bridge.send("size 2", "size 9000", "size big", "cursor hide")
+        self.assertTrue(self.wait_for_request(HIDE))
+        self.assertEqual(self.hyprland.requests, [HIDE])
+
+
 if __name__ == "__main__":
     unittest.main()

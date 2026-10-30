@@ -8,6 +8,10 @@ BarWidget {
   moduleName: "io.github.gabrielforster.big-cursor"
 
   readonly property var cursorService: bar?.shell?.serviceFor(root.moduleName)
+  readonly property int cursorSize: cursorService
+    ? cursorService.baseSize : Number(setting("baseSize", 24))
+  readonly property bool cursorSizeSet: cursorService
+    ? cursorService.sizeSet : setting("baseSize", undefined) !== undefined
   readonly property int maxSize: cursorService
     ? cursorService.maxSize : Number(setting("maxSize", 96))
   readonly property real sensitivity: cursorService
@@ -47,11 +51,43 @@ BarWidget {
   // Write one setting to this widget's shell.json entry. The service picks it
   // up from the file, but is updated first so the change is live on release.
   function persist(key, value) {
-    var entry = { id: root.moduleName }
-    for (var existing in root.settings) if (existing !== "id") entry[existing] = root.settings[existing]
-    entry[key] = value
-
+    var changes = {}
+    changes[key] = value
     if (cursorService) cursorService[key] = value
+    root.writeEntry(changes, [])
+  }
+
+  // The everyday size reaches Hyprland on release only: every change reloads
+  // the whole cursor theme. The maximum is raised with it so it never sits
+  // below the everyday size.
+  function setCursorSize(size) {
+    var changes = { baseSize: size }
+    if (root.maxSize < size) changes.maxSize = size
+    if (cursorService) {
+      cursorService.baseSize = size
+      cursorService.sizeSet = true
+      cursorService.maxSize = Math.max(cursorService.maxSize, size)
+      cursorService.applyCursorSize()
+    }
+    root.writeEntry(changes, [])
+  }
+
+  // Dropping the setting hands the size back to the session.
+  function resetCursorSize() {
+    if (cursorService) {
+      cursorService.sizeSet = false
+      cursorService.baseSize = cursorService.environmentSize()
+      cursorService.applyCursorSize()
+    }
+    root.writeEntry({}, ["baseSize"])
+  }
+
+  function writeEntry(changes, removed) {
+    var entry = { id: root.moduleName }
+    for (var existing in root.settings)
+      if (existing !== "id" && removed.indexOf(existing) < 0) entry[existing] = root.settings[existing]
+    for (var key in changes) entry[key] = changes[key]
+
     root.settings = entry
     if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
       root.bar.shell.updateEntryInline(root.moduleName, entry)
@@ -74,7 +110,8 @@ BarWidget {
     interval: 200
     repeat: false
     onTriggered: {
-      if (root.popupOpen && !button.tooltipHovered && !popup.containsMouse && !maxSlider.dragging
+      if (root.popupOpen && !button.tooltipHovered && !popup.containsMouse && !sizeSlider.dragging
+          && !maxSlider.dragging
           && !sensitivitySlider.dragging && !customSlider.dragging)
         root.popupOpen = false
     }
@@ -152,6 +189,36 @@ BarWidget {
         wrapMode: Text.WordWrap
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.caption
+      }
+
+      PanelSeparator { foreground: root.bar.foreground }
+
+      SettingRow {
+        label: "CURSOR SIZE"
+        valueText: (sizeSlider.dragging ? Math.round(sizeSlider.liveValue) : root.cursorSize) + " px"
+          + (root.cursorSizeSet ? "" : " · default")
+
+        PanelSlider {
+          id: sizeSlider
+          width: parent.width
+          bar: root.bar
+          minimum: 16
+          maximum: 128
+          step: 4
+          integer: true
+          value: root.cursorSize
+          onReleased: root.setCursorSize(Math.round(value))
+        }
+      }
+
+      Button {
+        width: parent.width
+        text: "Reset to default"
+        foreground: root.bar.foreground
+        bordered: true
+        enabled: root.cursorSizeSet
+        opacity: root.cursorSizeSet ? 1 : 0.4
+        onClicked: root.resetCursorSize()
       }
 
       PanelSeparator { foreground: root.bar.foreground }

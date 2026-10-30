@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "id": "io.github.gabrielforster.big-cursor",
   "name": "Big Cursor",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "gabrielforster",
-  "description": "Shake the mouse to find the cursor: it grows while you shake, like macOS.",
+  "description": "Shake the mouse to find the cursor: it grows while you shake, like macOS. Also sets the everyday cursor size.",
   "kinds": ["service", "bar-widget"],
   "entryPoints": {
     "service": "Service.qml",
@@ -12,7 +12,7 @@
   },
   "barWidget": {
     "displayName": "Big Cursor",
-    "description": "Shake to find the cursor. Click to set the maximum size; right-click to preview.",
+    "description": "Shake to find the cursor. Click to set the cursor size and the maximum size; right-click to preview.",
     "category": "Accessibility",
     "allowMultiple": false,
     "defaultSection": "right",

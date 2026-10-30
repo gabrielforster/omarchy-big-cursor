@@ -5,8 +5,9 @@ stdout: "<x> <y>" each time the pointer moves, and
         "arrow <path> <hotspotX> <hotspotY> <size>" after a "theme" request.
         "arrow" is printed once at startup too.
 stdin:  "cursor hide" / "cursor show" lines, which hide or show the real
-        compositor cursor while the service draws the enlarged one, and
-        "theme", which exports the current cursor theme's arrow image.
+        compositor cursor while the service draws the enlarged one,
+        "theme", which exports the current cursor theme's arrow image, and
+        "size <px>" / "size default", which set the everyday cursor size.
 
 Hyprland closes the request socket after every reply, which makes a QML
 Socket log a warning per sample; one long-lived process keeps that quiet.
@@ -33,10 +34,13 @@ COMMANDS = {
 }
 
 THEME_COMMAND = "theme"
+SIZE_COMMAND = "size"
+MIN_SIZE, MAX_SIZE = 8, 256
 IMAGE_TYPE = 0xFFFD0002  # Xcursor image chunk
 ARROW_NAMES = ("left_ptr", "default", "top_left_arrow", "arrow")
 ARROW_DIR = os.path.join(
     os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir(), "big-cursor")
+SIZE_MARKER = os.path.join(ARROW_DIR, "size")
 
 
 def socket_path():
@@ -211,6 +215,52 @@ def arrow_sprite():
     return target, image["hotspotX"], image["hotspotY"], image["nominal"]
 
 
+def session_size():
+    for variable in ("HYPRCURSOR_SIZE", "XCURSOR_SIZE"):
+        try:
+            size = int(os.environ.get(variable, ""))
+        except ValueError:
+            continue
+        if size > 0:
+            return size
+    return 24
+
+
+# Hyprland reloads the theme at the new size and forgets it when the session
+# ends, so the service applies it again at every start. The desktop
+# cursor-size setting is left alone: dconf keeps it after the plugin is
+# removed.
+#
+# "default" goes back to the size the session started with. The service sends
+# it whenever no size is set, so it only acts after a size was set this
+# session. The marker that records that lives in the runtime directory, which
+# is cleared at logout just as Hyprland forgets the size.
+def set_size(path, argument):
+    if argument == "default":
+        if not os.path.exists(SIZE_MARKER):
+            return
+        size = session_size()
+    else:
+        try:
+            size = int(argument)
+        except ValueError:
+            return
+        if not MIN_SIZE <= size <= MAX_SIZE:
+            return
+    try:
+        request(path, "/setcursor %s %d" % (theme_name(), size))
+    except OSError:
+        return
+    try:
+        if argument == "default":
+            os.unlink(SIZE_MARKER)
+        else:
+            os.makedirs(ARROW_DIR, exist_ok=True)
+            open(SIZE_MARKER, "w").close()
+    except OSError:
+        pass
+
+
 def report_theme():
     arrow = arrow_sprite()
     if arrow:
@@ -252,12 +302,13 @@ def main():
                 pending += data
                 *lines, pending = pending.split(b"\n")
                 commands = [line.decode(errors="replace").strip() for line in lines]
-                commands = [command for command in commands
-                            if command in COMMANDS or command == THEME_COMMAND]
                 for command in commands:
+                    name, _, argument = command.partition(" ")
                     if command == THEME_COMMAND:
                         report_theme()
-                    else:
+                    elif name == SIZE_COMMAND:
+                        set_size(path, argument.strip())
+                    elif command in COMMANDS:
                         try:
                             request(path, COMMANDS[command])
                             hidden = command == "cursor hide"
