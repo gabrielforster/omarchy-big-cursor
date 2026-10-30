@@ -56,9 +56,8 @@ class ThemeNameTest(SessionTest):
         self.session.set_desktop_theme("Yaru")
         self.assertEqual(bridge.theme_name(), "Yaru")
 
-    # Known issue: without dconf, gsettings has no storage and reports the
-    # schema default ('Adwaita') whether or not a theme was set, which hides
-    # the theme the session environment names.
+    # Without dconf, gsettings has no storage and reports the schema default
+    # ('Adwaita') whether or not a theme was set.
     def test_without_dconf_the_environment_wins_over_gsettings(self):
         self.session.remove_stub("dconf")
         self.session.set_desktop_theme("Adwaita")

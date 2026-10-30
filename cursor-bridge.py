@@ -60,31 +60,27 @@ def request(path, command):
 # has been applied, which covers themes set with `hyprctl setcursor` (as
 # Omarchy's cursor theming plugins do) and a setting changed after the shell
 # started. The session environment only covers the theme a fresh session boots
-# with, so it is the fallback. `dconf read` is preferred over `gsettings get`
-# because gsettings reports the default theme even when nothing is set.
-def desktop_theme():
-    commands = (
-        ["dconf", "read", "/org/gnome/desktop/interface/cursor-theme"],
-        ["gsettings", "get", "org.gnome.desktop.interface", "cursor-theme"],
-    )
-    for command in commands:
-        try:
-            completed = subprocess.run(command, capture_output=True, text=True, timeout=2)
-        except (OSError, subprocess.SubprocessError):
-            continue
-        return completed.stdout.strip().strip("'")
-    return ""
+# with, so it comes next. `gsettings get` is the last resort: it reports the
+# schema default even when nothing is set, and without dconf it has no storage
+# and only ever reports that default.
+def setting(command):
+    try:
+        completed = subprocess.run(command, capture_output=True, text=True, timeout=2)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return completed.stdout.strip().strip("'")
 
 
 def theme_name():
-    name = desktop_theme()
+    name = setting(["dconf", "read", "/org/gnome/desktop/interface/cursor-theme"])
     if name:
         return name
     for variable in ("HYPRCURSOR_THEME", "XCURSOR_THEME"):
         value = os.environ.get(variable)
         if value:
             return value
-    return "default"
+    name = setting(["gsettings", "get", "org.gnome.desktop.interface", "cursor-theme"])
+    return name or "default"
 
 
 def icon_dirs():
