@@ -105,3 +105,16 @@ The same settings live on the plugin's entry in
 
 The real cursor comes back if the plugin is disabled or reloaded, or if the
 shell exits while the cursor is enlarged.
+
+## Tests
+
+The bridge has tests that need nothing beyond Python. They run it against
+synthetic cursor themes and a fake Hyprland socket, so they don't touch the
+running session:
+
+```bash
+python3 -m unittest discover -s tests
+```
+
+Tests marked "Known issue" describe behavior that is still wrong and fail
+until it is fixed.
