@@ -199,7 +199,7 @@ Item {
   // The theme can change at runtime, so ask again when a shake starts; the
   // startup request only fills in the arrow for the first shake.
   function refreshCursorTheme() {
-    if (bridge.running) bridge.write("colors\n")
+    if (bridge.running) bridge.write("theme\n")
   }
 
   function handleLine(line) {

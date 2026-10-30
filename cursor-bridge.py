@@ -2,11 +2,11 @@
 """I/O bridge between the Big Cursor service and Hyprland's request socket.
 
 stdout: "<x> <y>" each time the pointer moves, and
-        "arrow <path> <hotspotX> <hotspotY> <size>" after a "colors" request.
+        "arrow <path> <hotspotX> <hotspotY> <size>" after a "theme" request.
         "arrow" is printed once at startup too.
 stdin:  "cursor hide" / "cursor show" lines, which hide or show the real
         compositor cursor while the service draws the enlarged one, and
-        "colors", which exports the current cursor theme's arrow image.
+        "theme", which exports the current cursor theme's arrow image.
 
 Hyprland closes the request socket after every reply, which makes a QML
 Socket log a warning per sample; one long-lived process keeps that quiet.
@@ -32,7 +32,7 @@ COMMANDS = {
     "cursor show": "/eval hl.config({ cursor = { invisible = false } })",
 }
 
-THEME_COMMAND = "colors"
+THEME_COMMAND = "theme"
 IMAGE_TYPE = 0xFFFD0002  # Xcursor image chunk
 ARROW_NAMES = ("left_ptr", "default", "top_left_arrow", "arrow")
 ARROW_DIR = os.path.join(

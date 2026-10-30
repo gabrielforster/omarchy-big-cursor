@@ -51,7 +51,7 @@ class ArrowExportTest(unittest.TestCase):
         bridge = self.start()
         first = bridge.wait_for("arrow")[1]
         self.session.set_desktop_theme("Light")
-        bridge.send("colors")
+        bridge.send("theme")
         second = bridge.wait_for("arrow")[1]
         self.assertNotEqual(first, second, "QML caches images by URL, so a new theme needs a new path")
         self.assertEqual(read_png(second)[2][24 * 12 + 12], (255, 255, 255, 255))
@@ -82,7 +82,7 @@ class ArrowExportTest(unittest.TestCase):
     def test_unchanged_theme_reuses_the_export(self):
         bridge = self.start_with(flat(24))
         first = bridge.wait_for("arrow")[1]
-        bridge.send("colors")
+        bridge.send("theme")
         self.assertEqual(bridge.wait_for("arrow")[1], first)
 
     # When the shell closes the bridge's input. A shell restart kills the

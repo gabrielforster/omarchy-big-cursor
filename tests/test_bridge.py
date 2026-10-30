@@ -81,7 +81,7 @@ class CursorVisibilityTest(BridgeTest):
 class ThemeRequestTest(BridgeTest):
     def test_stays_silent_without_a_theme(self):
         bridge = self.start(XCURSOR_THEME="Nope")
-        bridge.send("colors")
+        bridge.send("theme")
         self.assertIsNone(bridge.wait_for("arrow", timeout=0.5))
         # Still serving after the empty reply.
         bridge.send("cursor hide")
